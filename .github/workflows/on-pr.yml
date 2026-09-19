@@ -22,7 +22,7 @@ jobs:
     with:
       # 试点 Workers 版：后端 node --test（零依赖）；前端纯静态，无构建测试
       enable-backend-tests: true
-      backend-test-cmd: 'node --test backend/worker.test.js'
+      backend-test-cmd: 'node --test worker.test.js'
       enable-frontend-tests: false
       enable-integration: false
       e2e-timeout-minutes: 30
