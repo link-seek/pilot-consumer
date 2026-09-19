@@ -2,7 +2,7 @@
 name = "pilot-consumer"
 main = "backend/worker.js"
 compatibility_date = "2026-09-19"
-workers_dev = true
+workers_dev = false
 
 # 自定义域名直连（免 workers.dev 开通）：zone 内路由
 [[routes]]
