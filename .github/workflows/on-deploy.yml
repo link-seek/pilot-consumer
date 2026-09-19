@@ -54,9 +54,9 @@ jobs:
       # 已渲染（建仓时替换完毕）
       runner-label: eap-prod
       ghcr-image: ghcr.io/link-seek/pilot-consumer
-      oss-bucket: pilot-frontend-xyc
-      frontend-url: https://pilot.xieyucheng.top
-      api-url: https://pilot-api.xieyucheng.top
+      oss-bucket: ''
+      frontend-url: https://pilot.linkseek.net.cn
+      api-url: https://pilot-api.linkseek.net.cn
       deploy-script: scripts/deploy/deploy.sh
       backup-script: scripts/deploy/backup.sh
       rollback-script: scripts/deploy/rollback.sh
