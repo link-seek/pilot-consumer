@@ -21,6 +21,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Gate on deploy secret
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::CLOUDFLARE_API_TOKEN not set, skipping deploy (tests already ran)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Backend unit tests (no deps)
         run: node --test backend/worker.test.js
 
@@ -29,7 +41,7 @@ jobs:
 
   deploy-backend:
     needs: test
-    if: needs.test.result == 'success' && secrets.CLOUDFLARE_API_TOKEN != ''
+    if: needs.test.result == 'success'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -41,10 +53,24 @@ jobs:
         with:
           node-version: 20
 
+      - name: Gate on deploy secret
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::CLOUDFLARE_API_TOKEN not set, skipping deploy (tests already ran)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy backend to Cloudflare Workers
+        if: steps.gate.outputs.skip != 'true'
         run: npx -y wrangler@4 deploy
 
       - name: Health check (public API)
+        if: steps.gate.outputs.skip != 'true'
         run: |
           for i in $(seq 1 20); do
             if curl -sf https://pilot-api.linkseek.net.cn/health 2>/dev/null || curl -sf https://pilot-consumer.workers.dev/health 2>/dev/null; then
@@ -59,7 +85,7 @@ jobs:
 
   deploy-frontend:
     needs: test
-    if: needs.test.result == 'success' && secrets.CLOUDFLARE_API_TOKEN != ''
+    if: needs.test.result == 'success'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -71,5 +97,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Gate on deploy secret
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::CLOUDFLARE_API_TOKEN not set, skipping deploy (tests already ran)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy frontend to Cloudflare Pages
+        if: steps.gate.outputs.skip != 'true'
         run: npx -y wrangler@4 pages deploy frontend --project-name=pilot-consumer --commit-dirty=true
