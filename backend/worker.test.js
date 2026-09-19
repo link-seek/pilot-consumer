@@ -6,7 +6,9 @@ describe("pilot backend (workers)", () => {
   it("GET /health returns ok", async () => {
     const res = await worker.fetch(new Request("http://localhost/health"));
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { status: "ok" });
+    const body = await res.json();
+    assert.equal(body.status, "ok");
+    assert.equal(typeof body.timestamp, "number");
   });
 
   it("unknown path returns 404", async () => {
