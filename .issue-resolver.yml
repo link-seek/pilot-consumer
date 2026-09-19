@@ -14,4 +14,4 @@ risk_detection:
     - "\\.github/workflows/"
 
 test:
-  command: "cargo test --manifest-path backend/Cargo.toml"
+  command: "node --test backend/worker.test.js"

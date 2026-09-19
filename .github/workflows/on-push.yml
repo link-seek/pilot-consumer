@@ -1,4 +1,7 @@
-name: Build and Push Images
+name: Test and Deploy (Workers)
+
+# 试点走 Cloudflare，不走 ECS：push 到 main = 测试 + 直发生产（试点无流量）。
+# 需要仓 secrets：CLOUDFLARE_API_TOKEN（Workers+Pages 部署）、CLOUDFLARE_ACCOUNT_ID。
 
 on:
   push:
@@ -7,28 +10,66 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  actions: write
-  issues: write
-  pull-requests: write
-  checks: write
 
 jobs:
-  e2e-test:
-    uses: link-seek/issue-resolver-l1/.github/workflows/e2e-test.yml@v1.0.15-pilot
-    with:
-      ref: ''
-      docker-compose-file: 'docker-compose.ci.yml'
-      backend-health-url: 'http://localhost:8080/health'
-      frontend-health-url: 'http://localhost/health'
-    secrets: inherit
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  ci-cd:
-    needs: e2e-test
-    if: needs.e2e-test.result == 'success'
-    uses: link-seek/issue-resolver-l1/.github/workflows/ci-cd-acr.yml@v1.0.15-pilot
-    with:
-      # 已渲染（建仓时替换完毕）
-      ghcr-image: ghcr.io/link-seek/pilot-consumer
-      oss-bucket: ''
-    secrets: inherit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backend unit tests (no deps)
+        run: node --test backend/worker.test.js
+
+      - name: Validate wrangler config (dry-run, no deploy)
+        run: npx -y wrangler@4 deploy --dry-run
+
+  deploy-backend:
+    needs: test
+    if: needs.test.result == 'success' && secrets.CLOUDFLARE_API_TOKEN != ''
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy backend to Cloudflare Workers
+        run: npx -y wrangler@4 deploy
+
+      - name: Health check (public API)
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf https://pilot-api.linkseek.net.cn/health 2>/dev/null || curl -sf https://pilot-consumer.workers.dev/health 2>/dev/null; then
+              echo "Backend healthy!"
+              exit 0
+            fi
+            echo "Waiting... ($i/20)"
+            sleep 10
+          done
+          echo "::error::Backend health check failed after deploy"
+          exit 1
+
+  deploy-frontend:
+    needs: test
+    if: needs.test.result == 'success' && secrets.CLOUDFLARE_API_TOKEN != ''
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy frontend to Cloudflare Pages
+        run: npx -y wrangler@4 pages deploy frontend --project-name=pilot-consumer --commit-dirty=true

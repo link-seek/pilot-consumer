@@ -1,63 +1,64 @@
-name: On Deploy
+name: On Deploy (Workers, manual)
 
-# 能力: deploy（试点最小版：只走 registry 发布触发 + 手动）
-# 策略: 全部委托 L1 deploy.yml 决定
+# 试点手动部署/回滚：wrangler 原生能力。
+# - action=deploy（默认）：重新发布当前 main
+# - action=rollback + version=<id>：`wrangler deployments list` 取 id，回滚到指定版本
+# 需要仓 secrets：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID。
 
 on:
-  registry_package:
-    types: [published, updated]
   workflow_dispatch:
     inputs:
-      image-tag:
-        description: 'Image tag (for manual test)'
+      action:
+        description: 'deploy or rollback'
         required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - rollback
+      version:
+        description: 'Version id for rollback (wrangler deployments list)'
+        required: false
         type: string
 
-concurrency:
-  group: deploy-pilot-consumer
-  cancel-in-progress: false
-
 permissions:
-  packages: read
   contents: read
-  issues: write
-  actions: write
 
 jobs:
-  resolve-tag:
-    if: github.event_name == 'registry_package' || github.event_name == 'workflow_dispatch'
+  manual:
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.extract.outputs.tag }}
+    if: secrets.CLOUDFLARE_API_TOKEN != ''
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - name: Extract image tag
-        id: extract
-        run: |
-          if [ -n "${{ inputs.image-tag }}" ]; then
-            echo "tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          TAG='${{ github.event.registry_package.package_version.container_metadata.tag.name }}'
-          echo "Resolved tag from container_metadata: $TAG"
-          if [ -z "$TAG" ] || [ "$TAG" = "latest" ]; then
-            echo "No deployable tag found (tag='$TAG'), skipping deploy"
-            exit 0
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
 
-  deploy:
-    needs: resolve-tag
-    if: needs.resolve-tag.outputs.tag != ''
-    uses: link-seek/issue-resolver-l1/.github/workflows/deploy.yml@v1.0.15-pilot
-    with:
-      image-tag: ${{ needs.resolve-tag.outputs.tag }}
-      # 已渲染（建仓时替换完毕）
-      runner-label: eap-prod
-      ghcr-image: ghcr.io/link-seek/pilot-consumer
-      oss-bucket: ''
-      frontend-url: https://pilot.linkseek.net.cn
-      api-url: https://pilot-api.linkseek.net.cn
-      deploy-script: scripts/deploy/deploy.sh
-      backup-script: scripts/deploy/backup.sh
-      rollback-script: scripts/deploy/rollback.sh
-    secrets: inherit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy or rollback backend Worker
+        run: |
+          if [ "${{ inputs.action }}" = "rollback" ]; then
+            if [ -z "${{ inputs.version }}" ]; then
+              echo "::error::rollback needs inputs.version (see: wrangler deployments list)"
+              exit 1
+            fi
+            npx -y wrangler@4 rollback "${{ inputs.version }}"
+          else
+            npx -y wrangler@4 deploy
+          fi
+
+      - name: Health check (public API)
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf https://pilot-api.linkseek.net.cn/health 2>/dev/null || curl -sf https://pilot-consumer.workers.dev/health 2>/dev/null; then
+              echo "Backend healthy!"
+              exit 0
+            fi
+            echo "Waiting... ($i/20)"
+            sleep 10
+          done
+          echo "::error::Backend health check failed"
+          exit 1
