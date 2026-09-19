@@ -27,7 +27,6 @@ permissions:
 jobs:
   manual:
     runs-on: ubuntu-latest
-    if: secrets.CLOUDFLARE_API_TOKEN != ''
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -38,7 +37,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Gate on deploy secret
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::CLOUDFLARE_API_TOKEN not set, skipping deploy (tests already ran)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy or rollback backend Worker
+        if: steps.gate.outputs.skip != 'true'
         run: |
           if [ "${{ inputs.action }}" = "rollback" ]; then
             if [ -z "${{ inputs.version }}" ]; then
@@ -51,6 +63,7 @@ jobs:
           fi
 
       - name: Health check (public API)
+        if: steps.gate.outputs.skip != 'true'
         run: |
           for i in $(seq 1 20); do
             if curl -sf https://pilot-api.linkseek.net.cn/health 2>/dev/null || curl -sf https://pilot-consumer.workers.dev/health 2>/dev/null; then
