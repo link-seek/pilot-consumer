@@ -20,9 +20,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.pr-number != '')
     uses: link-seek/issue-resolver-l1/.github/workflows/pr-ci.yml@v1.0.15-pilot
     with:
-      # 试点骨架：后端零依赖 cargo test；前端纯静态，无构建测试
+      # 试点 Workers 版：后端 node --test（零依赖）；前端纯静态，无构建测试
       enable-backend-tests: true
-      backend-test-cmd: 'cargo test --manifest-path backend/Cargo.toml'
+      backend-test-cmd: 'node --test worker.test.js'
       enable-frontend-tests: false
       enable-integration: false
       e2e-timeout-minutes: 30

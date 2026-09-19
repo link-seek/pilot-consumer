@@ -1,0 +1,5 @@
+# pilot-consumer Workers 部署配置（试点走 Cloudflare，不走 ECS）
+name = "pilot-consumer"
+main = "backend/worker.js"
+compatibility_date = "2026-09-19"
+workers_dev = true

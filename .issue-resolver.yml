@@ -14,4 +14,22 @@ risk_detection:
     - "\\.github/workflows/"
 
 test:
-  command: "cargo test --manifest-path backend/Cargo.toml"
+  command: "node --test backend/worker.test.js"
+
+# 流程测试 — 如何触发每种流程（用于 pipeline_test.py 验证）
+# 注：试点暂无 DB/迁移，human_review 用 workflow 文件改动触发风险检测
+pipeline_test:
+  auto_merge:
+    title_template: "Pipeline Test: 更新 /health 响应时间戳 {ts}"
+    body_template: "在 backend/worker.js 的 /health 响应里加一个无害的 timestamp 字段，返回 JSON `{\"status\": \"ok\", \"timestamp\": {ts}}`。"
+  human_review:
+    title_template: "Pipeline Test: 给 on-push.yml 添加注释行 {ts}"
+    body_template: "在 .github/workflows/on-push.yml 顶部添加一行注释 `# pipeline-test {ts}`（命中风险检测 workflow pattern，走人工审查）。"
+  discussion:
+    category: "General"
+    body: "@oh 请分析下试点项目的整体架构和模块划分"
+
+# 部署验证
+deploy:
+  url: "https://pilot-api.linkseek.net.cn"
+  health_endpoint: "/health"
