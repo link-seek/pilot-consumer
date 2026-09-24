@@ -5,7 +5,7 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") {
-      return Response.json({ status: "ok", timestamp: Date.now() });
+      return Response.json({ status: "ok", timestamp: Date.now(), version: "1.0.0" });
     }
     return Response.json({ status: "not_found" }, { status: 404 });
   },

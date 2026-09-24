@@ -9,6 +9,7 @@ describe("pilot backend (workers)", () => {
     const body = await res.json();
     assert.equal(body.status, "ok");
     assert.equal(typeof body.timestamp, "number");
+    assert.equal(body.version, "1.0.0");
   });
 
   it("unknown path returns 404", async () => {
