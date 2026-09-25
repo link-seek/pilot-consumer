@@ -8,7 +8,7 @@ export default {
       return Response.json({ status: "ok", timestamp: Date.now(), version: "1.0.0", service: "pilot-consumer" });
     }
     if (request.method === "GET" && url.pathname === "/ready") {
-      return Response.json({ ready: true });
+      return Response.json({ ready: true, version: "1.0.0" });
     }
     return Response.json({ status: "not_found" }, { status: 404 });
   },
